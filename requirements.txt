@@ -1,0 +1,17 @@
+langchain
+langchain-community
+langchain_chroma
+bs4
+pypdf
+faiss-cpu
+streamlit
+fitz
+pymupdf
+numpy
+python-pptx
+matplotlib
+ollama
+accelerate
+transformers
+torch
+onnxruntime-genai-directml
