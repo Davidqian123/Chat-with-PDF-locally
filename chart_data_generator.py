@@ -1,30 +1,71 @@
 import json
 from prompts import COLUMN_CHART_TEMPLATE, PIE_CHART_TEMPLATE
-from inference_chart_model import generation_chart_data
-import re
 import logging
+from nexa.gguf import NexaTextInference
 
 # Set the logging level for the openai logger to WARNING
 logging.getLogger().setLevel(logging.ERROR)
 
 def get_template_and_model_path(chart_type: str) -> str:
     if chart_type == "COLUMN_CLUSTERED" or chart_type == None: # Will also use template for pure text calling
-        return COLUMN_CHART_TEMPLATE, "./models/column_chart_onnx"
+        return COLUMN_CHART_TEMPLATE, "./models/lora/Column_Chart-F16-LoRA.gguf"
     elif chart_type == "PIE":
-        return PIE_CHART_TEMPLATE, "./models/pie_chart_onnx"
+        return PIE_CHART_TEMPLATE, "./models/lora/Pie_Chart-F16-LoRA.gguf"
     else:
         raise ValueError(f"Invalid chart type: {chart_type}")
 
 def clean_response(raw_response: str) -> dict:
-    try:
-        return json.loads(raw_response)
-    except json.JSONDecodeError as e:
-        print(f"JSON decoding failed: {e}")
-        return None
+    start = raw_response.find('{')
+    if start == -1:
+        print("No JSON object found in the response.")
+        return None  # No JSON object found
 
-def execute_chart_generation(input_text, onnx_model, chart_type):
-    template, local_model_path = get_template_and_model_path(chart_type)
-    raw_response = generation_chart_data(text = input_text, onnx_model = onnx_model, chat_template = template)
+    brace_count = 0
+    in_string = False
+    escape = False
+    end = start
+
+    while end < len(raw_response):
+        char = raw_response[end]
+        if char == '"' and not escape:
+            in_string = not in_string
+        if not in_string:
+            if char == '{':
+                brace_count += 1
+            elif char == '}':
+                brace_count -= 1
+                if brace_count == 0:
+                    json_str = raw_response[start:end+1]
+                    try:
+                        return json.loads(json_str)
+                    except json.JSONDecodeError as e:
+                        print(f"JSON decoding failed: {e}")
+                        return None
+        if char == '\\' and not escape:
+            escape = True
+        else:
+            escape = False
+        end += 1
+
+    print("No complete JSON object found in the response.")
+    return None  # Didn't find a matching closing brace
+
+
+def generation_chart_data(text, lora_model_path, chat_template):
+    chart_model = NexaTextInference(
+        local_path="./models/base/gemma2-2B-base-fp16.gguf",
+        lora_path=lora_model_path
+    )
+
+    prompt = chat_template.format(input=text)
+    response = chart_model.create_completion(prompt, stop=["<end>"])
+
+    return response["choices"][0]["text"]
+
+def execute_chart_generation(input_text, chart_type):
+    template, lora_model_path = get_template_and_model_path(chart_type)
+    raw_response = generation_chart_data(text = input_text, lora_model_path = lora_model_path, chat_template = template)
+    print(raw_response)
     
     cleaned_response_dict = clean_response(raw_response)
     
