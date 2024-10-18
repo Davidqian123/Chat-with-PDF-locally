@@ -16,6 +16,7 @@ Analyze the following query and generate the appropriate JSON response:
 {input}
 <<USR>>"""
 
+
 PIE_CHART_TEMPLATE = """<s>[INST] <<SYS>>
 You are a helpful assistant that generates a specific JSON response based on the given query. Your task is to analyze the query and create a JSON object with two main keys: "text" and "chart_data".
 
@@ -33,3 +34,6 @@ The "chart_data" key should contain:
 Analyze the following query and generate the appropriate JSON response:
 {input}
 <<USR>>"""
+
+
+DECISION_MAKING_TEMPLATE = "Below is the query from the users, please call the correct function and generate the parameters to call the function.\n\nQuery: {input}\n\nResponse:"

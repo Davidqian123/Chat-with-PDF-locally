@@ -1,49 +1,29 @@
 import streamlit as st
 from langchain_chroma import Chroma
-from langchain_community.embeddings import OllamaEmbeddings
+from langchain_community.embeddings import LlamaCppEmbeddings
 import os
 import json
-import ollama
 from presentation_generator import PresentationGenerator
 from chart_data_generator import execute_chart_generation
 from chart_generator import ChartGenerator
-from intent_classifier import classify_user_intent
 from PIL import Image
-from transformers import AutoTokenizer, AutoModelForCausalLM
-import torch
-import time
-import onnxruntime_genai as og
+from nexa.gguf import NexaTextInference
+from prompts import DECISION_MAKING_TEMPLATE
+from build_db import create_chroma_db
 
-avatar_path = "files/avatar.png"
-
-# Load the base model and tokenizer once during initialization
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-BASE_MODEL_NAME = "./models/octopus-v2-base"
-ONNX_MODEL_COLUMN = "./models/column_chart_onnx"
-ONNX_MODEL_PIE = "./models/pie_chart_onnx"
+avatar_path = "files/avatar.jpeg"
 
 @st.cache_resource
-def load_octopus_model():
+def load_models():
     # Load the base model
-    base_model = AutoModelForCausalLM.from_pretrained(
-        BASE_MODEL_NAME,
-        torch_dtype=torch.bfloat16
-    ).to(DEVICE)
-    print("Base model loaded successfully!")
+    chat_model = NexaTextInference(model_path="llama3.2")
+    print("Chat model loaded successfully!")
 
-    # Load tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL_NAME)
-    tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.padding_side = "right"
-    print("Tokenizer loaded successfully!")
+    # Load the decision model
+    decision_model = NexaTextInference(local_path="./models/base/octopus-v2-pdf-Q4_K_M.gguf")
+    print("Decision model loaded successfully!")
 
-    # Load the chart models
-    column_chart_model = og.Model(ONNX_MODEL_COLUMN)
-    print("Column chart model loaded successfully!")
-    pie_chart_model = og.Model(ONNX_MODEL_PIE)
-    print("Pie chart model loaded successfully!")
-
-    return base_model, tokenizer, column_chart_model, pie_chart_model
+    return chat_model, decision_model
 
 def initialize_session_state():
     if "messages" not in st.session_state:
@@ -58,7 +38,7 @@ def initialize_session_state():
         st.session_state.pdf_filename = ""
 
 def setup_retriever():
-    embeddings = OllamaEmbeddings(model="nomic-embed-text")
+    embeddings = LlamaCppEmbeddings(model_path="./models/base/nomic-embed-text-fp16.gguf")
     local_db = Chroma(
         persist_directory="./chroma_db", embedding_function=embeddings
     )
@@ -71,7 +51,8 @@ def retrieve_documents(retriever, query):
         print(doc.page_content)
     return [doc.page_content for doc in docs]
 
-def call_pdf_qa(query, context):
+
+def call_pdf_qa(query, context, chat_model):
     system_prompt = (
         "You are a QA assistant. Based on the following context, answer the question using bullet points and include necessary data.\n\n"
         f"Context:\n{context}"
@@ -81,13 +62,11 @@ def call_pdf_qa(query, context):
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": query},
     ]
-    
-    print("messages", messages)
 
     try:
-        stream = ollama.chat(
-            model="llama3.2",
+        stream = chat_model.create_chat_completion(
             messages=messages,
+            max_tokens=2048,
             stream=True
         )
         return stream
@@ -95,7 +74,8 @@ def call_pdf_qa(query, context):
         st.error(f"An error occurred while calling QA: {str(e)}")
         return None
 
-def query_information_with_retrieval(prompt, retriever):
+
+def query_information_with_retrieval(prompt, retriever, chat_model):
     with st.chat_message("assistant", avatar=avatar_path):
         with st.spinner("Generating..."):
             # Retrieve documents and prepare context
@@ -103,7 +83,7 @@ def query_information_with_retrieval(prompt, retriever):
             context = "\n\n".join(retrieved_docs)
             
             # Get the response stream
-            stream = call_pdf_qa(prompt, context)
+            stream = call_pdf_qa(prompt, context, chat_model)
             if stream is None:
                 return
             
@@ -113,7 +93,7 @@ def query_information_with_retrieval(prompt, retriever):
         
             # Stream the response and update the placeholder
             for chunk in stream:
-                content = chunk['message']['content']
+                content = chunk["choices"][0]["delta"].get("content", "")
                 full_response += content
                 response_placeholder.markdown(full_response)
             
@@ -125,25 +105,24 @@ def query_information_with_retrieval(prompt, retriever):
             })
             st.session_state.last_response = full_response
 
-
-def irrelevant_function(prompt):
+def irrelevant_function(prompt, chat_model):
     with st.chat_message("assistant", avatar=avatar_path):
         with st.spinner("Generating..."):
             # Get the response stream
-            stream = call_common_qa(prompt)
+            stream = call_common_qa(prompt, chat_model)
             if stream is None:
                 return
             
             # Create a placeholder for the streaming response
             response_placeholder = st.empty()
             full_response = ""
-        
+
             # Stream the response and update the placeholder
             for chunk in stream:
-                content = chunk['message']['content']
+                content = chunk["choices"][0]["delta"].get("content", "")
                 full_response += content
                 response_placeholder.markdown(full_response)
-            
+
             # Update session state after streaming is complete
             st.session_state.messages.append({
                 "role": "assistant",
@@ -152,14 +131,15 @@ def irrelevant_function(prompt):
             })
             st.session_state.last_response = full_response
 
-def call_common_qa(prompt):
+def call_common_qa(prompt, chat_model):
     messages = [
+        {"role": "system", "content": "You are a helpful assistant."},
         {"role": "user", "content": prompt},
     ]
     try:
-        stream = ollama.chat(
-            model="llama3.2",
+        stream = chat_model.create_chat_completion(
             messages=messages,
+            max_tokens=2048,
             stream=True
         )
         return stream
@@ -167,7 +147,7 @@ def call_common_qa(prompt):
         st.error(f"An error occurred while calling QA: {str(e)}")
         return None
 
-def call_title_text_summary(query):
+def call_title_text_summary(query, chat_model):
     system_prompt = (
         "You are a helpful assistant that generates a brief, relevant title for the given query in 10 words or less."
     )
@@ -178,17 +158,17 @@ def call_title_text_summary(query):
     ]
 
     try:
-        response = ollama.chat(
-            model="llama3.2",
+        response = chat_model.create_chat_completion(
             messages=messages,
+            max_tokens=2048,
         )
-        return (response['message']['content'])
+        return (response["choices"][0]["message"]["content"])
     
     except Exception as e:
         st.error(f"An error occurred while generating title: {str(e)}")
         return None
 
-def call_main_text_summary(query):
+def call_main_text_summary(query, chat_model):
     system_prompt = (
         "You are a helpful assistant that generates a short summary for the given query."
     )
@@ -199,19 +179,19 @@ def call_main_text_summary(query):
     ]
 
     try:
-        response = ollama.chat(
-            model="llama3.2",
+        response = chat_model.create_chat_completion(
             messages=messages,
+            max_tokens=2048,
         )
-        return (response['message']['content'])
+        return (response["choices"][0]["message"]["content"])
     
     except Exception as e:
         st.error(f"An error occurred while generating main text summary: {str(e)}")
         return None
 
-def generate_chart(onnx_model, chart_type):
+def generate_chart(chart_type):
     """Helper function to generate a chart."""
-    result = execute_chart_generation(st.session_state.last_response, onnx_model, chart_type)
+    result = execute_chart_generation(st.session_state.last_response, chart_type)
 
     if result is None:
         st.warning("No valid json data was generated from the last response.")
@@ -260,11 +240,22 @@ def prepare_success_message(slide_data):
 
     return success_message
 
+def classify_user_intent(prompt, decision_model):
+    if decision_model is None:
+        st.error("Decision model is not loaded. Please refresh the page or contact support.")
+        return None
 
-def add_to_slides(onnx_model, chart_type=None):
+    formatted_prompt = DECISION_MAKING_TEMPLATE.format(input=prompt)
+    output = decision_model.create_completion(formatted_prompt, stop=["<nexa_end>"])
+
+    return output["choices"][0]["text"].strip()
+
+
+
+def add_to_slides(chart_type=None):
     if st.session_state.last_response:
         with st.spinner("Generating chart and adding to slides..."):
-            slide_data = generate_chart(onnx_model, chart_type)
+            slide_data = generate_chart(chart_type)
 
             if slide_data is None:
                 return
@@ -289,13 +280,11 @@ def add_to_slides(onnx_model, chart_type=None):
         # Force a rerun to display the new message
         st.rerun()
 
-        st.success("Slide added successfully!")
-
-def add_to_text_slides():
+def add_to_text_slides(chat_model):
     if st.session_state.last_response:
         with st.spinner("Generating text slide..."):
-            title_text = call_title_text_summary(st.session_state.last_response)
-            main_text = call_main_text_summary(st.session_state.last_response)
+            title_text = call_title_text_summary(st.session_state.last_response, chat_model)
+            main_text = call_main_text_summary(st.session_state.last_response, chat_model)
 
             slide_data = {
                 "title_text": title_text,
@@ -320,11 +309,9 @@ def add_to_text_slides():
         # Force a rerun to display the new message
         st.rerun()
 
-        st.success("Slide added successfully!")
-
 def generate_presentation():
     with st.spinner("Generating presentation..."):
-        generator = PresentationGenerator("files/amd_ppt_template.pptx")
+        generator = PresentationGenerator("files/ppt_template.pptx")
         generator.generate_presentation(
             "slides_data.json",
             "presentation_with_charts_and_text.pptx",
@@ -345,7 +332,7 @@ def display_download_button():
 
 # Main Streamlit App
 def main():
-    img = Image.open("files/avatar.png")
+    img = Image.open("files/avatar.jpeg")
     
     # Ensure the sidebar is always expanded
     st.set_page_config(
@@ -355,8 +342,8 @@ def main():
         initial_sidebar_state="expanded"  # The sidebar cannot be collapsed
     )
 
-    # Load the base model and tokenizer once
-    base_model, tokenizer, column_chart_model, pie_chart_model = load_octopus_model()
+    # Load the models once
+    chat_model, decision_model = load_models()
 
     # Add sidebar with Nexa logo and descriptions
     st.sidebar.image("files/nexa_logo.png", use_column_width=True)  # Adjust the logo path
@@ -388,27 +375,35 @@ def main():
         uploaded_file = st.file_uploader("Choose a PDF file", type="pdf")
         if uploaded_file is not None:
             with st.spinner("Processing the PDF file..."):
-                time.sleep(10)
+                # Save the uploaded file temporarily
+                temp_file_path = os.path.join("temp", uploaded_file.name)
+                os.makedirs("temp", exist_ok=True)
+                with open(temp_file_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+                # Create the Chroma database
+                db = create_chroma_db(pdf_path=temp_file_path)
+                # Clean up the temporary file
+                os.remove(temp_file_path)
+
             st.session_state.file_uploaded = True
             st.session_state.pdf_filename = uploaded_file.name
             st.success("File processed successfully!")
             st.rerun()
 
     if prompt := st.chat_input("What would you like to know?"):
-        # Pass the base_model and tokenizer to classify_user_intent
         st.chat_message("user").markdown(prompt)
-        intent = classify_user_intent(prompt, base_model, tokenizer)
+        intent = classify_user_intent(prompt, decision_model)
         st.session_state.messages.append({"role": "user", "content": prompt})
         
         print("intent", intent)
         if intent == "<nexa_0>":        # query_with_pdf 
-            query_information_with_retrieval(prompt, retriever)
+            query_information_with_retrieval(prompt, retriever, chat_model)
         elif intent == "<nexa_1>":      # generate_slide_text_content 
-            add_to_text_slides()
+            add_to_text_slides(chat_model)
         elif intent == "<nexa_2>":      # generate_slide_column_chart 
-            add_to_slides(column_chart_model, "COLUMN_CLUSTERED")
+            add_to_slides("COLUMN_CLUSTERED")
         elif intent == "<nexa_4>":      # generate_slide_pie_chart
-            add_to_slides(pie_chart_model, "PIE")
+            add_to_slides("PIE")
         elif intent == "<nexa_5>":      # create_presentation 
             generate_presentation()
         elif intent == "<nexa_6>":      # download_presentation
@@ -419,7 +414,7 @@ def main():
                     "No presentation has been generated yet. Please create a presentation first."
                 )
         else:                           # irrelevant_function 
-            irrelevant_function(prompt)
+            irrelevant_function(prompt, chat_model)
 
 
 if __name__ == "__main__":

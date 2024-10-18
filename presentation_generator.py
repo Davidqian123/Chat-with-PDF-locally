@@ -214,7 +214,7 @@ class PresentationGenerator:
 # Usage
 if __name__ == "__main__":
     generator = PresentationGenerator(
-        "files/amd_ppt_template.pptx"
+        "files/ppt_template.pptx"
     )
     generator.generate_presentation(
         "slides_data.json", "example_presentation_with_charts_and_text.pptx"
