@@ -42,7 +42,7 @@ Introduce 2024 AsusZenbook S16 according to pdf content
 Create a text slide for this
 
 <strong>Q2 Column Chart:</strong>
-What is the gaming performance of the laptopaccording to pdf content
+What is the gaming performance of the laptop according to pdf content
 Create a column chart showing dataå
 
 <strong>Q3 Column Chart:</strong> 

@@ -53,7 +53,7 @@ def clean_response(raw_response: str) -> dict:
 
 def generation_chart_data(text, lora_model_path, chat_template):
     chart_model = NexaTextInference(
-        local_path="./models/base/gemma2-2B-base-fp16.gguf",
+        model_path="gemma-2-2b-instruct:fp16",
         lora_path=lora_model_path
     )
 

@@ -10,13 +10,14 @@ from PIL import Image
 from nexa.gguf import NexaTextInference
 from prompts import DECISION_MAKING_TEMPLATE
 from build_db import create_chroma_db
+from nexa.general import pull_model
 
 avatar_path = "files/avatar.jpeg"
 
 @st.cache_resource
 def load_models():
     # Load the base model
-    chat_model = NexaTextInference(model_path="llama3.2")
+    chat_model = NexaTextInference(model_path="gemma-2-2b-instruct:fp16")
     print("Chat model loaded successfully!")
 
     # Load the decision model
@@ -38,7 +39,8 @@ def initialize_session_state():
         st.session_state.pdf_filename = ""
 
 def setup_retriever():
-    embeddings = LlamaCppEmbeddings(model_path="./models/base/nomic-embed-text-fp16.gguf")
+    local_path, run_type = pull_model("nomic")
+    embeddings = LlamaCppEmbeddings(model_path=local_path)
     local_db = Chroma(
         persist_directory="./chroma_db", embedding_function=embeddings
     )

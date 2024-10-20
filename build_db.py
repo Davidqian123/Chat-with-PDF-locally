@@ -1,26 +1,34 @@
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import LlamaCppEmbeddings
+from nexa_embedding import NexaEmbeddings
 from langchain_chroma import Chroma
+from nexa.general import pull_model
 import time
+import os
+import shutil
 
 # Constants
-MODEL_PATH = "./models/base/nomic-embed-text-fp16.gguf"
 PERSIST_DIRECTORY = "./chroma_db"
 
 def create_chroma_db(pdf_path):
+    # Clear existing database if it exists
+    db_path = "./chroma_db"
+    if os.path.exists(db_path):
+        shutil.rmtree(db_path)
+        print(f"Cleared existing database at {db_path}")
+
+
     start = time.time()
-    
-    # Load PDF
     loader = PyPDFLoader(pdf_path)
     docs = loader.load()
-    
-    # Split text
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)      # Adjust chunk_size and chunk_overlap as needed
     splits = text_splitter.split_documents(docs)
     
     # Create embeddings
-    embeddings = LlamaCppEmbeddings(model_path=MODEL_PATH)
+    # local_path, run_type = pull_model("nomic")
+    # embeddings = LlamaCppEmbeddings(model_path=local_path)
+    embeddings = NexaEmbeddings(model_path="nomic")
     
     # Create and persist Chroma database
     db = Chroma.from_documents(
