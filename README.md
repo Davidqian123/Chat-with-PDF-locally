@@ -43,7 +43,7 @@ Create a text slide for this
 
 <strong>Q2 Column Chart:</strong>
 What is the gaming performance of the laptop according to pdf content
-Create a column chart showing dataå
+Create a column chart showing data
 
 <strong>Q3 Column Chart:</strong> 
 What is the 3DMark benchmark performance according to pdf content

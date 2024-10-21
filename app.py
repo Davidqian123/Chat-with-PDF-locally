@@ -17,7 +17,7 @@ persist_directory = "./chroma_db"
 @st.cache_resource
 def load_models():
     # Load the base model
-    chat_model = NexaTextInference(model_path="gemma-2-2b-instruct:fp16")
+    chat_model = NexaTextInference(model_path="llama3.2")
     print("Chat model loaded successfully!")
 
     # Load the decision model
