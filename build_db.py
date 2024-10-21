@@ -2,11 +2,10 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import LlamaCppEmbeddings
 from langchain_chroma import Chroma
+from nexa.general import pull_model
 import time
 
-# Constants
-MODEL_PATH = "./models/base/nomic-embed-text-fp16.gguf"
-PERSIST_DIRECTORY = "./chroma_db"
+persist_directory = "./chroma_db"
 
 def create_chroma_db(pdf_path):
     start = time.time()
@@ -20,13 +19,14 @@ def create_chroma_db(pdf_path):
     splits = text_splitter.split_documents(docs)
     
     # Create embeddings
-    embeddings = LlamaCppEmbeddings(model_path=MODEL_PATH)
+    local_model_path, run_type = pull_model("nomic")
+    embeddings = LlamaCppEmbeddings(model_path=local_model_path)
     
     # Create and persist Chroma database
     db = Chroma.from_documents(
         documents=splits,
         embedding=embeddings,
-        persist_directory=PERSIST_DIRECTORY,
+        persist_directory=persist_directory,
     )
     
     end = time.time()
@@ -34,7 +34,6 @@ def create_chroma_db(pdf_path):
     print(f"Chroma database created with {db._collection.count()} documents")
     
     return db
-
 if __name__ == "__main__":
     # Example usage
     db = create_chroma_db(pdf_path="files/AMD_documentation_rewrite.pdf")
