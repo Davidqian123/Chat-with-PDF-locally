@@ -1,6 +1,6 @@
 import streamlit as st
 from langchain_chroma import Chroma
-from nexa_embedding import NexaEmbeddings
+from langchain_community.embeddings import LlamaCppEmbeddings
 import os
 import json
 from presentation_generator import PresentationGenerator
@@ -10,6 +10,7 @@ from PIL import Image
 from nexa.gguf import NexaTextInference
 from prompts import DECISION_MAKING_TEMPLATE
 from build_db import create_chroma_db
+from nexa.general import pull_model
 
 avatar_path = "files/avatar.jpeg"
 persist_directory = "./chroma_db"
@@ -39,7 +40,8 @@ def initialize_session_state():
         st.session_state.pdf_filename = ""
 
 def setup_retriever():
-    embeddings = NexaEmbeddings(model_path="nomic")
+    local_model_path, run_type = pull_model("nomic")
+    embeddings = LlamaCppEmbeddings(model_path=local_model_path)
     local_db = Chroma(
         persist_directory=persist_directory, embedding_function=embeddings
     )

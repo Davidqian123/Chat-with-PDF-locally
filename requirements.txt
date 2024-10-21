@@ -1,6 +1,7 @@
 langchain
 langchain-community
 langchain_chroma
+llama-cpp-python
 pypdf
 streamlit
 matplotlib
