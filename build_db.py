@@ -1,15 +1,10 @@
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import LlamaCppEmbeddings
 from nexa_embedding import NexaEmbeddings
 from langchain_chroma import Chroma
-from nexa.general import pull_model
 import time
 import os
 import shutil
-
-# Constants
-PERSIST_DIRECTORY = "./chroma_db"
 
 def create_chroma_db(pdf_path):
     # Clear existing database if it exists
@@ -18,7 +13,6 @@ def create_chroma_db(pdf_path):
         shutil.rmtree(db_path)
         print(f"Cleared existing database at {db_path}")
 
-
     start = time.time()
     loader = PyPDFLoader(pdf_path)
     docs = loader.load()
@@ -26,15 +20,13 @@ def create_chroma_db(pdf_path):
     splits = text_splitter.split_documents(docs)
     
     # Create embeddings
-    # local_path, run_type = pull_model("nomic")
-    # embeddings = LlamaCppEmbeddings(model_path=local_path)
     embeddings = NexaEmbeddings(model_path="nomic")
     
     # Create and persist Chroma database
     db = Chroma.from_documents(
         documents=splits,
         embedding=embeddings,
-        persist_directory=PERSIST_DIRECTORY,
+        persist_directory=db_path,
     )
     
     end = time.time()
@@ -45,10 +37,10 @@ def create_chroma_db(pdf_path):
 
 if __name__ == "__main__":
     # Example usage
-    db = create_chroma_db(pdf_path="files/AMD_documentation_rewrite.pdf")
+    db = create_chroma_db(pdf_path="files/llmsuite.pdf")
     
     # Optional: Test the database
-    query = "what is the Frames Per Second of different games according to pdf"
+    query = "what is introduction of the paper"
     results = db.similarity_search(query)
     print(f"Top result for '{query}':")
     print(results[0].page_content)

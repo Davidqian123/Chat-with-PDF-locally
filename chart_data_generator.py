@@ -2,15 +2,16 @@ import json
 from prompts import COLUMN_CHART_TEMPLATE, PIE_CHART_TEMPLATE
 import logging
 from nexa.gguf import NexaTextInference
+from nexa.general import pull_model
 
 # Set the logging level for the openai logger to WARNING
 logging.getLogger().setLevel(logging.ERROR)
 
 def get_template_and_model_path(chart_type: str) -> str:
     if chart_type == "COLUMN_CLUSTERED" or chart_type == None: # Will also use template for pure text calling
-        return COLUMN_CHART_TEMPLATE, "./models/lora/Column_Chart-F16-LoRA.gguf"
+        return COLUMN_CHART_TEMPLATE, "DavidHandsome/Column-Chart-LoRA:gguf-fp16"
     elif chart_type == "PIE":
-        return PIE_CHART_TEMPLATE, "./models/lora/Pie_Chart-F16-LoRA.gguf"
+        return PIE_CHART_TEMPLATE, "DavidHandsome/Pie-Chart-LoRA:gguf-fp16"
     else:
         raise ValueError(f"Invalid chart type: {chart_type}")
 
@@ -52,9 +53,10 @@ def clean_response(raw_response: str) -> dict:
 
 
 def generation_chart_data(text, lora_model_path, chat_template):
+    local_lora_path, run_type = pull_model(lora_model_path)
     chart_model = NexaTextInference(
         model_path="gemma-2-2b-instruct:fp16",
-        lora_path=lora_model_path
+        lora_path=local_lora_path,
     )
 
     prompt = chat_template.format(input=text)
