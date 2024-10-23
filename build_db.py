@@ -1,8 +1,7 @@
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import LlamaCppEmbeddings
+from nexa_embedding import NexaEmbeddings
 from langchain_chroma import Chroma
-from nexa.general import pull_model
 import time
 
 persist_directory = "./chroma_db"
@@ -19,8 +18,7 @@ def create_chroma_db(pdf_path):
     splits = text_splitter.split_documents(docs)
     
     # Create embeddings
-    local_model_path, run_type = pull_model("nomic")
-    embeddings = LlamaCppEmbeddings(model_path=local_model_path)
+    embeddings = NexaEmbeddings(model_path="nomic")
     
     # Create and persist Chroma database
     db = Chroma.from_documents(
