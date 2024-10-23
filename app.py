@@ -120,23 +120,6 @@ def irrelevant_function():
             })
             st.session_state.last_response = irrelevance_message
 
-# def call_common_qa(prompt, chat_model):
-#     messages = [
-#         {"role": "system", "content": "You are a helpful assistant."},
-#         {"role": "user", "content": prompt},
-#     ]
-#     try:
-#         stream = chat_model.create_chat_completion(
-#             messages=messages,
-#             max_tokens=2048,
-#             stream=True
-#         )
-#         return stream
-#     except Exception as e:
-#         st.error(f"An error occurred while calling QA: {str(e)}")
-#         return None
-
-
 def generate_chart(chart_type):
     """Helper function to generate a chart."""
     result = execute_chart_generation(st.session_state.last_response, chart_type)
