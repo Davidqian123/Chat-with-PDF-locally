@@ -47,8 +47,6 @@ def setup_retriever():
 
 def retrieve_documents(retriever, query):
     docs = retriever.get_relevant_documents(query)
-    for doc in docs:
-        print(doc.page_content)
     return [doc.page_content for doc in docs]
 
 
@@ -105,47 +103,38 @@ def query_information_with_retrieval(prompt, retriever, chat_model):
             })
             st.session_state.last_response = full_response
 
-def irrelevant_function(prompt, chat_model):
+def irrelevant_function():
     with st.chat_message("assistant", avatar=avatar_path):
         with st.spinner("Generating..."):
-            # Get the response stream
-            stream = call_common_qa(prompt, chat_model)
-            if stream is None:
-                return
+            # Create a message indicating irrelevance
+            irrelevance_message = "I apologize, but your question doesn't seem to be related to the PDF content."
             
-            # Create a placeholder for the streaming response
-            response_placeholder = st.empty()
-            full_response = ""
+            # Display the message
+            st.markdown(irrelevance_message)
 
-            # Stream the response and update the placeholder
-            for chunk in stream:
-                content = chunk["choices"][0]["delta"].get("content", "")
-                full_response += content
-                response_placeholder.markdown(full_response)
-
-            # Update session state after streaming is complete
+            # Update session state
             st.session_state.messages.append({
                 "role": "assistant",
-                "content": full_response,
+                "content": irrelevance_message,
                 "avatar": avatar_path
             })
-            st.session_state.last_response = full_response
+            st.session_state.last_response = irrelevance_message
 
-def call_common_qa(prompt, chat_model):
-    messages = [
-        {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": prompt},
-    ]
-    try:
-        stream = chat_model.create_chat_completion(
-            messages=messages,
-            max_tokens=2048,
-            stream=True
-        )
-        return stream
-    except Exception as e:
-        st.error(f"An error occurred while calling QA: {str(e)}")
-        return None
+# def call_common_qa(prompt, chat_model):
+#     messages = [
+#         {"role": "system", "content": "You are a helpful assistant."},
+#         {"role": "user", "content": prompt},
+#     ]
+#     try:
+#         stream = chat_model.create_chat_completion(
+#             messages=messages,
+#             max_tokens=2048,
+#             stream=True
+#         )
+#         return stream
+#     except Exception as e:
+#         st.error(f"An error occurred while calling QA: {str(e)}")
+#         return None
 
 
 def generate_chart(chart_type):
@@ -218,27 +207,14 @@ def clear_chroma_collection(persist_directory: str):
 # Main Streamlit App
 def main():
     img = Image.open("files/avatar.jpeg")
-    
-    # Ensure the sidebar is always expanded
+
     st.set_page_config(
         page_title="Nexa AI PDF Chatbot",
         page_icon=img,
-        layout="wide",  # This ensures the sidebar is always expanded
-        initial_sidebar_state="expanded"  # The sidebar cannot be collapsed
     )
 
     # Load the models once
     chat_model, decision_model = load_models()
-
-    # Add sidebar with Nexa logo and descriptions
-    st.sidebar.image("files/nexa_logo.png", use_column_width=True)  # Adjust the logo path
-    st.sidebar.markdown("## Nexa AI's solution")
-    st.sidebar.markdown("""
-    - Comprehensive On-Device AI Solutions
-    - Open-Source AI Model Hub
-    - On-Device AI Developer Community
-    - SDK for Multi-Modal AI Integration
-    """)
 
     st.title("Nexa AI PDF Chatbot")
     initialize_session_state()
@@ -278,7 +254,7 @@ def main():
             st.success("File processed successfully!")
             st.rerun()
 
-    if prompt := st.chat_input(placeholder="What would you like to know? Please mention PDF or document to trigger RAG"):
+    if prompt := st.chat_input(placeholder="What would you like to know about the PDF? start your question with <pdf> to trigger RAG"):
         st.chat_message("user").markdown(prompt)
         intent = classify_user_intent(prompt, decision_model)
         st.session_state.messages.append({"role": "user", "content": prompt})
@@ -291,7 +267,7 @@ def main():
         elif intent == "<nexa_4>":      # generate_slide_pie_chart
             add_to_slides("PIE")
         else:                           # irrelevant_function 
-            irrelevant_function(prompt, chat_model)
+            irrelevant_function()
 
 
 if __name__ == "__main__":
