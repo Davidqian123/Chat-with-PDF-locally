@@ -28,8 +28,6 @@ def load_models():
 def initialize_session_state():
     if "messages" not in st.session_state:
         st.session_state.messages = []
-    if "ppt_generated" not in st.session_state:
-        st.session_state.ppt_generated = False
     if "last_response" not in st.session_state:
         st.session_state.last_response = ""
     if "file_uploaded" not in st.session_state:
