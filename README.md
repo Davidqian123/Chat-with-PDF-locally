@@ -4,6 +4,14 @@
 
 This demo is a PDF chatbot that can answer both common questions and PDF specific questions and generate charts based on the PDF content. It uses a combination of a local LLM, a vector database, and a LoRA model for chart generation. It is built using Nexa SDK.
 
+## Tech Stack
+
+1. For local rag, we use NexaEmbeddings to embed the PDF content and store it in a ChromaDB.
+2. For function calling, we use a Octopus-v2-PDF model that is finetuned from Octopus-V2-2B model for function calling.
+3. For query with pdf, we use a Llama3.2-3B-Instruct model to generate the response according to the retrieved content.
+4. For chart generation, we use a base model(gemma-2-2b-instruct) and two LoRA models(Column-Chart-LoRA and Pie-Chart-LoRA) for column/pie chart generation.
+
+
 ## Used Models
 
 - [Llama3.2-3B-Instruct](https://nexa.ai/meta/Llama3.2-3B-Instruct/gguf-q4_0/readme)

@@ -10,7 +10,7 @@ from prompts import DECISION_MAKING_TEMPLATE
 from build_db import create_chroma_db
 import chromadb
 
-avatar_path = "files/avatar.jpeg"
+avatar_path = "assets/avatar.jpeg"
 persist_directory = "./chroma_db"
 
 @st.cache_resource
@@ -187,7 +187,7 @@ def clear_chroma_collection(persist_directory: str):
 
 # Main Streamlit App
 def main():
-    img = Image.open("files/avatar.jpeg")
+    img = Image.open("assets/avatar.jpeg")
 
     st.set_page_config(
         page_title="Nexa AI PDF Chatbot",
